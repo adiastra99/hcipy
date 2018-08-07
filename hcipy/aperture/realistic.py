@@ -1,5 +1,5 @@
 import numpy as np
-from ..field import CartesianGrid, UnstructuredCoords
+from ..field import CartesianGrid, UnstructuredCoords, evaluate_supersampled
 from .generic import make_obstructed_circular_aperture, make_spider
 
 def make_vlt_aperture():
@@ -19,7 +19,7 @@ def make_magellan_aperture(normalized=False):
 	normalized : boolean
 		If this is True, the outer diameter will be scaled to 1. Otherwise, the
 		diameter of the pupil will be 6.5 meters.
-	
+
 	Returns
 	-------
 	Field generator
@@ -28,7 +28,7 @@ def make_magellan_aperture(normalized=False):
 	pupil_diameter = 6.5 #m
 	spider_width1 = 0.75 * 0.0254 #m
 	spider_width2 = 1.5 * 0.0254 #m
-	central_obscuration_ratio = 0.29 
+	central_obscuration_ratio = 0.29
 	spider_offset = [0,0.34] #m
 
 	if normalized:
@@ -54,8 +54,32 @@ def make_magellan_aperture(normalized=False):
 		return obstructed_aperture(grid) * spider1(grid) * spider2(grid) * spider3(grid) * spider4(grid)
 	return func
 
-def make_keck_aperture():
-	pass
+def make_keck_aperture(normalized=False):
+	'''Make the Keck aperture.
+	To be implemented later: change aperture from circular to a set of hexagons
+
+	Parameters
+	----------
+	normalized : boolean
+		If this is True, the outer diameter will be scaled to 1. Otherwise, the
+		diameter of the pupil will be 9.96 meters.
+
+	Returns
+	-------
+	Field generator
+		The Keck aperture.
+	'''
+	D_keck = 9.96 #m
+	spider_width = 0.0254 #m
+	central_obscuration_ratio = 0.266
+	# Source for figures: http://www.oir.caltech.edu/twiki_oir/pub/Keck/NGAO/NotesKeckPSF/KeckPupil_Notes.png
+	if normalized:
+		spider_width /= D_keck
+		D_keck = 1
+	keck_aperture = make_obstructed_circular_aperture(D_keck, central_obscuration_ratio, 6, spider_width)
+	def func(grid):
+		return evaluate_supersampled(keck_aperture, grid, 8)
+	return func
 
 def make_luvoir_aperture():
 	pass

@@ -1,4 +1,4 @@
-__all__ = ['inverse_truncated', 'inverse_truncated_modal', 'inverse_tikhonov']
+__all__ = ['inverse_truncated', 'inverse_truncated_modal', 'inverse_tikhonov', 'least_inv']
 __all__ += ['SVD']
 
 from .matrix_inversion import *
