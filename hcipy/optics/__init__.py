@@ -1,4 +1,4 @@
-__all__ = ['make_power_law_error', 'SurfaceAberration', 'SurfaceAberrationAtDistance']
+__all__ = ['make_power_law_error', 'SurfaceAberration', 'SurfaceAberrationAtDistance', 'pupil_sin_phase']
 __all__ += ['Apodizer', 'PhaseApodizer', 'ThinLens', 'SurfaceApodizer', 'ComplexSurfaceApodizer', 'MultiplexedComplexSurfaceApodizer']
 __all__ += ['DynamicOpticalSystem']
 __all__ += ['DeformableMirror']

@@ -9,6 +9,7 @@ from ..optics import Wavefront
 from ..math_util import least_inv
 
 import numpy as np
+from matplotlib import pyplot as plt # just for testing
 
 def pyramid_surface(refractive_index, separation, wavelength_0):
 	'''Creates a function which can create a pyramid surface on a grid.
@@ -42,8 +43,8 @@ class PyramidWavefrontSensor(WavefrontSensor):
 		The side length (in pixels) of the input pupil grid.
 	pupil_diameter : scalar
 		The size of the pupil.
-	pupil_separation : scalar
-		The separation distance between the pupils in pupil diameters.
+	grid_separation : scalar
+		The separation distance between the pupils on the output grid in pupil diameters.
 	grid_size : scalar
 		The side length (in pixels) of the grid on which the output is sampled.
 	grid_diameter : scalar
@@ -78,7 +79,7 @@ class PyramidWavefrontSensor(WavefrontSensor):
 		As in parameters.
 	subpupil_pixels : scalar
 		As in parameters.
-	pupil_separation : scalar
+	grid_separation : scalar
 		As in parameters.
 	optics : PyramidWavefrontSensorOptics
 		The object representing the optics for the sensor.
@@ -88,18 +89,16 @@ class PyramidWavefrontSensor(WavefrontSensor):
 		The object representing the reconstructor for the sensor.
 	'''
 
-	def __init__(self, pupil_size, subpupil_pixels, grid_diameter=None, grid_size=None, pupil_diameter=1, pupil_separation=1.5, aperture=None, wavelength_0=1, q=4, refractive_index=lambda x : 1.5, num_airy=None):
+	def __init__(self, pupil_size, subpupil_pixels, grid_diameter, pupil_diameter=1, grid_separation=1.5, grid_size=None, aperture=None, wavelength_0=1, q=4, refractive_index=lambda x : 1.5, num_airy=None):
 		self.pupil_diameter = pupil_diameter
 		self.grid_diameter = grid_diameter
-		self.pupil_separation = pupil_separation
+		self.grid_separation = grid_separation
 		self.subpupil_pixels = subpupil_pixels
 		self.pupil_size = pupil_size
 		self.grid_size = grid_size
 
 		if grid_size is None:
-			grid_size = pupil_size
-		if self.grid_diameter is None:
-			self.grid_diameter = self.pupil_diameter
+			grid_size = self.pupil_size
 		if aperture is None:
 			aperture = circular_aperture(pupil_diameter)
 
@@ -107,7 +106,7 @@ class PyramidWavefrontSensor(WavefrontSensor):
 		self.output_grid = make_pupil_grid(grid_size, self.grid_diameter)
 
 		self.optics = PyramidWavefrontSensorOptics(self, wavelength_0, q, refractive_index, num_airy)
-		self.estimator = PyramidWavefrontSensorEstimator(self, aperture)
+		self.estimator = PyramidWavefrontSensorEstimator(self, aperture, self.optics.output_grid)
 		self.reconstructor = PyramidWavefrontSensorReconstructor(self)
 
 	def propagate(self, wf):
@@ -163,15 +162,15 @@ class PyramidWavefrontSensorOptics(WavefrontSensorOptics):
 		# the pupil grid is now made from the diameter (which defaults to 1) and the size in pixels.
 
 		# Make mask
-		sep = 0.5 * sensor.pupil_separation * sensor.pupil_diameter
+		sep = 0.5 * sensor.grid_separation * sensor.pupil_diameter
 
 		# Multiply by 2 because we want to have two pupils next to each other
-		output_grid_size = (sensor.pupil_separation + 1) * sensor.pupil_diameter
-		output_grid_pixels = np.ceil(sensor.subpupil_pixels * (sensor.pupil_separation + 1))
+		output_grid_size = (sensor.grid_separation + 1) * sensor.pupil_diameter
+		output_grid_pixels = np.ceil(sensor.subpupil_pixels * (sensor.grid_separation + 1))
 
 		# Need at least two times over sampling in the focal plane because we want to separate two pupils completely
-		if q < 2 * sensor.pupil_separation:
-			q = 2 * sensor.pupil_separation
+		if q < 2 * sensor.grid_separation:
+			q = 2 * sensor.grid_separation
 
 		# Create the intermediate and final grids
 		self.output_grid = make_pupil_grid(output_grid_pixels, output_grid_size)
@@ -220,11 +219,12 @@ class PyramidWavefrontSensorEstimator(WavefrontSensorEstimator):
 	num_measurements : int
 		The number of pixels in the output vector. (The size of the real vector representing the state of the estimated images.)
 	'''
-	def __init__(self, sensor, aperture):
-		Dsps = sensor.grid_diameter * sensor.subpupil_pixels / sensor.output_grid.x.ptp()
+	def __init__(self, sensor, aperture, outgrid):
+		Dsps = sensor.grid_diameter * sensor.subpupil_pixels / sensor.pupil_size
 		self.subpupil_grid = make_pupil_grid(sensor.subpupil_pixels, Dsps)
-		self.measurement_grid = sensor.output_grid
+		self.measurement_grid = outgrid
 		self.pupil_mask = aperture(sensor.pupil_grid)
+		self.grid_mask = aperture(self.subpupil_grid)
 		self.num_measurements = 2 * int(np.sum(self.pupil_mask > 0))
 
 	def get_sub_images(self, image):
@@ -240,11 +240,12 @@ class PyramidWavefrontSensorEstimator(WavefrontSensorEstimator):
 			A list of valid Fields, each representing a sub-image of the pyramid wavefront sensor.
 		'''
 		# TODO: Check that buffer space outside the grid of size (subpupil_pixels * (pupsep + 1)) is getting removed correctly.
+		images = image
 		pysize = int(np.sqrt(image.size))
-		sps = int(self.subpupil_grid.x.ptp())
-		image.shape = (pysize, pysize)
-		sub_images = [image[pysize-sps-1:pysize-1, 0:sps], image[pysize-sps-1:pysize-1, pysize-sps-1:pysize-1],
-	                  image[0:sps, 0:sps], image[0:sps, pysize-sps-1:pysize-1]]
+		sps = int(np.sqrt(self.subpupil_grid.size))
+		images.shape = (pysize, pysize)
+		sub_images = [images[pysize-sps-1:pysize-1, 0:sps], images[pysize-sps-1:pysize-1, pysize-sps-1:pysize-1],
+	                  images[0:sps, 0:sps], images[0:sps, pysize-sps-1:pysize-1]]
 		for count, img in enumerate(sub_images):
 			img = img.ravel()
 			img.grid = self.subpupil_grid
@@ -274,7 +275,7 @@ class PyramidWavefrontSensorEstimator(WavefrontSensorEstimator):
 		norm = I_a + I_b + I_c + I_d
 		I_x = (I_a + I_b - I_c - I_d) / norm
 		I_y = (I_a - I_b - I_c + I_d) / norm
-		return Field(I_x.ravel(), self.subpupil_grid), Field(I_y.ravel(), self.subpupil_grid)
+		return Field(I_x, self.subpupil_grid), Field(I_y, self.subpupil_grid)
 
 	def aperture_plot(data):
 		'''A function to plot data of size self.num_measurements on self.pupil_mask.
@@ -364,7 +365,7 @@ class PyramidWavefrontSensorReconstructor(WavefrontSensorReconstructor):
 		basis = make_sine_basis(self.measurement_grid, make_pupil_grid(N))
 		basis = ModeBasis(x * self.pupil_mask for x in basis)
 		return basis.orthogonalized
-		return ModeBasis(x for x in basis.orthogonalized)
+		return ModeBasis(np.around(x, 3) for x in basis.orthogonalized)
 
 	def as_basis_sum(self, wf, basis_matrix):
 		'''Reconstructs a wavefront as a linear combination of basis elements.

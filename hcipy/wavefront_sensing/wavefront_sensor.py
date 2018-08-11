@@ -72,49 +72,6 @@ class WavefrontSensorReconstructor(object):
 		'''
 		raise NotImplementedError()
 
-	def pupil_sin_phase(pupil, wavsx=1, wavsy=0, amplitude=0.1):
-		'''Generates a sine aberration from which to make a modal reconstruction basis.
-
-		Parameters
-		---------
-		pupil : Field
-			The attribute of the input (sampled over the pupil grid of a WFS) to aberrate.
-			Usually the electric_field attribute of a Wavefront object.
-		wavsx : scalar
-			The number of complete sine aberrations to apply across the pupil in the x direction.
-		wavsy : scalar
-			The number of complete sine aberrations to apply across the pupil in the y direction.
-		amplitude : scalar
-			The amplitude of the sine aberrations to apply. Should be less than/equal to 1.
-
-		Returns
-		-------
-		Field
-			Same type of physical object as pupil, with aberration applied.
-		'''
-		size = pupil.x.ptp()
-		x = np.arange(size)
-		y = np.arange(size)
-		sin = np.zeros((size,size))
-		tau = 2 * np.pi
-
-		try:
-			angfreq_x = size / wavsx
-			xfreq = tau / angfreq_x
-		except ZeroDivisionError:
-			xfreq = 0
-
-		try:
-			angfreq_y = size / wavsy
-			yfreq = tau / angfreq_y
-		except ZeroDivisionError:
-			yfreq = 0
-
-		for i in range(len(x)):
-			for j in range(len(y)):
-				sin[i,j] = amplitude * np.sin(xfreq*i+yfreq*j)
-
-		return pupil * np.exp(complex(0,1)*sin).ravel()
 
 	def reconstruct(self, estimate, basis):
 		'''Given some estimate of wavefront attributes such as slopes, and a
